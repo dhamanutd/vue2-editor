@@ -1,7 +1,10 @@
 <template>
   <div class="quillWrapper">
     <slot name="toolbar"></slot>
-    <div :id="id" ref="quillContainer"></div>
+    <div
+      :id="id"
+      ref="quillContainer"
+    ></div>
     <input
       v-if="useCustomImageHandler"
       id="file-upload"
@@ -27,40 +30,40 @@ export default {
   props: {
     id: {
       type: String,
-      default: "quill-container"
+      default: "quill-container",
     },
     placeholder: {
       type: String,
-      default: ""
+      default: "",
     },
     value: {
       type: String,
-      default: ""
+      default: "",
     },
     disabled: {
-      type: Boolean
+      type: Boolean,
     },
     editorToolbar: {
       type: Array,
-      default: () => []
+      default: () => [],
     },
     editorOptions: {
       type: Object,
       required: false,
-      default: () => ({})
+      default: () => ({}),
     },
     useCustomImageHandler: {
       type: Boolean,
-      default: false
+      default: false,
     },
     useMarkdownShortcuts: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
 
   data: () => ({
-    quill: null
+    quill: null,
   }),
 
   watch: {
@@ -71,7 +74,7 @@ export default {
     },
     disabled(status) {
       this.quill.enable(!status);
-    }
+    },
   },
 
   mounted() {
@@ -100,7 +103,7 @@ export default {
         modules: this.setModules(),
         theme: "snow",
         placeholder: this.placeholder ? this.placeholder : "",
-        readOnly: this.disabled ? this.disabled : false
+        readOnly: this.disabled ? this.disabled : false,
       };
 
       this.prepareEditorConfig(editorConfig);
@@ -109,8 +112,35 @@ export default {
 
     setModules() {
       let modules = {
-        toolbar: this.editorToolbar.length ? this.editorToolbar : defaultToolbar
+        toolbar: this.editorToolbar.length
+          ? this.editorToolbar
+          : defaultToolbar,
       };
+
+      const Link = Quill.import("formats/link");
+      const PROTOCOL_WHITELIST = [
+        "lionparcel",
+        "mailto",
+        "https",
+        "http",
+        "tel",
+      ];
+      Link.sanitize = function (url) {
+        // prefix default protocol.
+        let protocol = url.slice(0, url.indexOf(":"));
+        if (PROTOCOL_WHITELIST.indexOf(protocol) === -1) {
+          url = "http://" + url;
+        }
+        // Link._sanitize function
+        let anchor = document.createElement("a");
+        anchor.href = url;
+        protocol = anchor.href.slice(0, anchor.href.indexOf(":"));
+        return PROTOCOL_WHITELIST.indexOf(protocol) > -1
+          ? url
+          : this.SANITIZED_URL;
+      };
+      Quill.register(Link, true);
+
       if (this.useMarkdownShortcuts) {
         Quill.register("modules/markdownShortcuts", MarkdownShortcuts, true);
         modules["markdownShortcuts"] = {};
@@ -136,10 +166,10 @@ export default {
     },
 
     registerPrototypes() {
-      Quill.prototype.getHTML = function() {
+      Quill.prototype.getHTML = function () {
         return this.container.querySelector(".ql-editor").innerHTML;
       };
-      Quill.prototype.getWordCount = function() {
+      Quill.prototype.getWordCount = function () {
         return this.container.querySelector(".ql-editor").innerText.length;
       };
     },
@@ -181,7 +211,7 @@ export default {
       const deletedContents = currrentContents.diff(oldContents);
       const operations = deletedContents.ops;
 
-      operations.map(operation => {
+      operations.map((operation) => {
         if (operation.insert && operation.insert.hasOwnProperty("image")) {
           const { image } = operation.insert;
           this.$emit("image-removed", image);
@@ -202,7 +232,7 @@ export default {
     },
 
     emitImageInfo($event) {
-      const resetUploader = function() {
+      const resetUploader = function () {
         var uploader = document.getElementById("file-upload");
         uploader.value = "";
       };
@@ -211,8 +241,8 @@ export default {
       let range = Editor.getSelection();
       let cursorLocation = range.index;
       this.$emit("image-added", file, Editor, cursorLocation, resetUploader);
-    }
-  }
+    },
+  },
 };
 </script>
 
