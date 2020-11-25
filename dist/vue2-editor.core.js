@@ -1,6 +1,6 @@
 /*!
  * vue2-editor v2.10.2 
- * (c) 2019 David Royer
+ * (c) 2020 David Royer
  * Released under the MIT License.
  */
 (function (global, factory) {
@@ -640,6 +640,25 @@
         var modules = {
           toolbar: this.editorToolbar.length ? this.editorToolbar : defaultToolbar
         };
+        var Link = Quill.import("formats/link");
+        var PROTOCOL_WHITELIST = ["lionparcel", "mailto", "https", "http", "tel"];
+
+        Link.sanitize = function (url) {
+          // prefix default protocol.
+          var protocol = url.slice(0, url.indexOf(":"));
+
+          if (PROTOCOL_WHITELIST.indexOf(protocol) === -1) {
+            url = "http://" + url;
+          } // Link._sanitize function
+
+
+          var anchor = document.createElement("a");
+          anchor.href = url;
+          protocol = anchor.href.slice(0, anchor.href.indexOf(":"));
+          return PROTOCOL_WHITELIST.indexOf(protocol) > -1 ? url : this.SANITIZED_URL;
+        };
+
+        Quill.register(Link, true);
 
         if (this.useMarkdownShortcuts) {
           Quill.register("modules/markdownShortcuts", MarkdownShortcuts, true);
