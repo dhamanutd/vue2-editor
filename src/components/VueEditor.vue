@@ -23,6 +23,7 @@ import defaultToolbar from "@/helpers/default-toolbar";
 import oldApi from "@/helpers/old-api";
 import mergeDeep from "@/helpers/merge-deep";
 import MarkdownShortcuts from "@/helpers/markdown-shortcuts";
+import { breakDown, fixUp } from "@/helpers/quill-fix-indent";
 
 export default {
   name: "VueEditor",
@@ -69,7 +70,7 @@ export default {
   watch: {
     value(val) {
       if (val != this.quill.root.innerHTML && !this.quill.hasFocus()) {
-        this.quill.root.innerHTML = val;
+        this.quill.root.innerHTML = breakDown(val);
       }
     },
     disabled(status) {
@@ -200,7 +201,7 @@ export default {
     handleTextChange(delta, oldContents) {
       let editorContent =
         this.quill.getHTML() === "<p><br></p>" ? "" : this.quill.getHTML();
-      this.$emit("input", editorContent);
+      this.$emit("input", fixUp(editorContent));
 
       if (this.useCustomImageHandler)
         this.handleImageRemoved(delta, oldContents);
