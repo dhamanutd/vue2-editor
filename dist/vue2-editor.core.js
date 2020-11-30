@@ -958,7 +958,7 @@
     watch: {
       value: function value(val) {
         if (val != this.quill.root.innerHTML && !this.quill.hasFocus()) {
-          this.quill.root.innerHTML = breakDown(val);
+          this.quill.root.innerHTML = val;
         }
       },
       disabled: function disabled(status) {
