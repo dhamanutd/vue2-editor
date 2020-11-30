@@ -70,7 +70,7 @@ export default {
   watch: {
     value(val) {
       if (val != this.quill.root.innerHTML && !this.quill.hasFocus()) {
-        this.quill.root.innerHTML = val;
+        this.quill.root.innerHTML = breakDown(val);
       }
     },
     disabled(status) {
@@ -241,7 +241,7 @@ export default {
     handleTextChange(delta, oldContents) {
       let editorContent =
         this.quill.getHTML() === "<p><br></p>" ? "" : this.quill.getHTML();
-      this.$emit("input", fixUp(editorContent));
+      this.$emit("input", editorContent);
 
       if (this.useCustomImageHandler)
         this.handleImageRemoved(delta, oldContents);
