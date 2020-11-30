@@ -143,8 +143,24 @@
     return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _nonIterableRest();
   }
 
+  function _toConsumableArray(arr) {
+    return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _nonIterableSpread();
+  }
+
+  function _arrayWithoutHoles(arr) {
+    if (Array.isArray(arr)) {
+      for (var i = 0, arr2 = new Array(arr.length); i < arr.length; i++) arr2[i] = arr[i];
+
+      return arr2;
+    }
+  }
+
   function _arrayWithHoles(arr) {
     if (Array.isArray(arr)) return arr;
+  }
+
+  function _iterableToArray(iter) {
+    if (Symbol.iterator in Object(iter) || Object.prototype.toString.call(iter) === "[object Arguments]") return Array.from(iter);
   }
 
   function _iterableToArrayLimit(arr, i) {
@@ -171,6 +187,10 @@
     }
 
     return _arr;
+  }
+
+  function _nonIterableSpread() {
+    throw new TypeError("Invalid attempt to spread non-iterable instance");
   }
 
   function _nonIterableRest() {
@@ -551,361 +571,148 @@
     return MarkdownShortcuts;
   }(); // module.exports = MarkdownShortcuts;
 
-  /*
-   * Quill 1.* cannot next block elements inside <li> including nested <ul>,<ol>.
-   * To achieve nested lists it uses flat linear lists with CSS class `ql-indent-\d+` on <li>.
-   * Nesting <ul> inside <ol> or vice-versa cause topmost list to break in two adjacent lists.
-   *
-   * There is the only solution: fix bad HTML after getting it from Quill and break it back before
-   * passing to Quill again for editing.
-   */
-  var mkNode = function mkNode() {
-    var tagName = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : "div";
-    return document.createElement(tagName);
-  };
-
-  var IS_LI = {
-    LI: true,
-    li: true
-  };
-
-  function wrapContent(node) {
-    var tagName = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "div";
-    var container = mkNode(tagName);
-
-    while (node.firstChild) {
-      container.appendChild(node.firstChild);
+  // https://github.com/quilljs/quill/issues/979
+  function quillDecodeIndent(text) {
+    if (!text || text.length === 0) {
+      return text;
     }
 
-    node.appendChild(container);
-  }
+    var tempEl = window.document.createElement("div");
+    tempEl.setAttribute("style", "display: none;");
+    tempEl.innerHTML = text;
+    ["ul", "ol"].forEach(function (type) {
+      // Grab each list, and work on it in turn
+      Array.from(tempEl.querySelectorAll(type)).forEach(function (outerListEl) {
+        var listChildren = Array.from(outerListEl.children).filter(function (el) {
+          return el.tagName === "LI";
+        });
+        var lastLiLevel = 0;
+        var parentElementsStack = [];
+        var root = document.createElement(type);
+        parentElementsStack.push(root);
+        listChildren.forEach(function (e, i) {
+          var currentLiLevel = getQuillListLevel(e);
+          e.className = e.className.replace(getIndentClass(currentLiLevel), "");
+          var difference = currentLiLevel - lastLiLevel;
+          lastLiLevel = currentLiLevel;
 
-  function nextNode(node) {
-    var current = node;
+          if (difference > 0) {
+            var currentDiff = difference;
 
-    do {
-      current = current.nextSibling;
-    } while (current && 1 !== current.nodeType);
+            while (currentDiff > 0) {
+              var lastLiInCurrentLevel = seekLastElement(parentElementsStack).lastElementChild;
 
-    return current;
-  }
+              if (!lastLiInCurrentLevel) {
+                lastLiInCurrentLevel = document.createElement("li");
+                encode_addChildToCurrentParent(parentElementsStack, lastLiInCurrentLevel);
+              }
 
-  function firstNode(node) {
-    var current = node.firstChild;
-
-    while (current && 1 !== current.nodeType) {
-      current = current.nextSibling;
-    }
-
-    return current;
-  }
-
-  function lastNode(node) {
-    var current = node.lastChild;
-
-    while (current && 1 !== current.nodeType) {
-      current = current.previousSibling;
-    }
-
-    return current;
-  }
-
-  function parentNodes(node) {
-    var filter = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
-    var ret = [];
-    var cur = node.parentNode;
-
-    while (cur) {
-      if (1 === cur.nodeType) {
-        if (!filter || filter(cur)) {
-          ret.push(cur);
-        }
-      }
-
-      cur = cur.parentNode;
-    }
-
-    return ret;
-  }
-
-  function insertBefore(newNode, refNode) {
-    refNode.parentNode.insertBefore(newNode, refNode);
-  }
-
-  function insertAfter(newNode, refNode) {
-    var next = nextNode(refNode);
-
-    if (next) {
-      insertBefore(newNode, next);
-    } else {
-      refNode.parentNode.append(newNode);
-    }
-  }
-
-  var reIndent = /^ql-indent-(\d+)$/;
-
-  var mkLevelClass = function mkLevelClass(level) {
-    return "ql-indent-".concat(level);
-  };
-
-  var getItemLevel = function getItemLevel(li) {
-    var level = 0;
-    Array.from(li.classList).some(function (name) {
-      var match = name.match(reIndent);
-
-      if (match) {
-        level = Number(match[1]);
-        return true;
-      }
-    });
-    return level;
-  };
-
-  var setItemLevel = function setItemLevel(li, level) {
-    var changed = false;
-    Array.from(li.classList).forEach(function (name) {
-      if (reIndent.test(name)) {
-        li.classList.remove(name);
-        changed = true;
-      }
-    });
-
-    if (!level) {
-      return changed;
-    }
-
-    li.classList.add(mkLevelClass(level));
-    return true;
-  };
-
-  var removeItemLevel = function removeItemLevel(li) {
-    var level = 0;
-    Array.from(li.classList).some(function (name) {
-      var match = name.match(reIndent);
-
-      if (match) {
-        li.classList.remove(name);
-
-        if (!li.classList.length) {
-          li.removeAttribute("class");
-        }
-
-        level = Number(match[1]);
-        return true;
-      }
-    });
-    return level;
-  };
-
-  var getListLevel = function getListLevel(list) {
-    var li = firstNode(list);
-    return li && IS_LI[li.tagName] ? getItemLevel(li) : 0;
-  };
-
-  function fixUp(content) {
-    var swap = mkNode();
-    swap.innerHTML = content; // find all `ul,ol`
-
-    var lists = Array.from(swap.querySelectorAll("ul,ol")); // if none then return content;
-
-    if (!lists.length) {
-      return content;
-    }
-
-    var changed = false; // check its indent level
-    // nest lists and remember if anything was changed
-
-    {
-      var prevList = null;
-      var prevListLevel = null;
-      var prevLastLi = null;
-      var prevLastLiLevel = null;
-      var stack = [];
-      lists.forEach(function (list, listIndex) {
-        var curLevel = getListLevel(list);
-        var curLastLi = lastNode(list);
-        var curLastLiLevel = getItemLevel(curLastLi);
-
-        if (null === prevList) {
-          prevList = list;
-          prevListLevel = curLevel;
-          prevLastLi = curLastLi;
-          prevLastLiLevel = curLastLiLevel;
-          return;
-        }
-
-        while (curLevel < prevLastLiLevel && stack.length) {
-          var _stack$pop = stack.pop();
-
-          var _stack$pop2 = _slicedToArray(_stack$pop, 4);
-
-          prevList = _stack$pop2[0];
-          prevListLevel = _stack$pop2[1];
-          prevLastLi = _stack$pop2[2];
-          prevLastLiLevel = _stack$pop2[3];
-        }
-
-        if (curLevel > prevLastLiLevel) {
-          stack.push([prevList, prevListLevel, prevLastLi, prevLastLiLevel]);
-
-          if (!firstNode(prevLastLi)) {
-            wrapContent(prevLastLi);
+              var newList = document.createElement(type);
+              lastLiInCurrentLevel.appendChild(newList);
+              parentElementsStack.push(newList);
+              currentDiff--;
+            }
           }
 
-          prevLastLi.appendChild(list);
-          changed = true;
-          prevList = list;
-          prevListLevel = curLevel;
-          prevLastLi = curLastLi;
-          prevLastLiLevel = curLastLiLevel;
-          return;
-        }
+          if (difference < 0) {
+            var _currentDiff = difference;
 
-        if (list.tagName === prevList.tagName && nextNode(prevList) === list) {
-          // merge lists
-          while (list.firstChild) {
-            prevList.appendChild(list.firstChild);
-            changed = true;
-          } // remove empty list from DOM
+            while (_currentDiff < 0) {
+              parentElementsStack.pop();
+              _currentDiff++;
+            }
+          }
 
-
-          list.remove(); // remove it from array
-
-          delete lists[listIndex];
-          prevLastLi = lastNode(prevList);
-          prevLastLiLevel = getItemLevel(prevLastLi);
-          return;
-        }
-
-        prevList = list;
-        prevListLevel = curLevel;
-        prevLastLi = curLastLi;
-        prevLastLiLevel = curLastLiLevel;
+          encode_addChildToCurrentParent(parentElementsStack, e);
+        });
+        outerListEl.innerHTML = root.innerHTML;
       });
-    } // check all its `li`
-
-    lists.forEach(function (list) {
-      var li = firstNode(list);
-      var baseLevel = removeItemLevel(li);
-      var prevLi = li;
-      var prevList = list;
-      var prevLevel = baseLevel;
-      var stack = [];
-      var nextLi = nextNode(prevLi);
-
-      while (nextLi) {
-        var curLi = nextLi;
-        nextLi = nextNode(nextLi);
-        var curLevel = removeItemLevel(curLi);
-
-        while (curLevel < prevLevel && curLevel >= baseLevel && stack.length) {
-          var _stack$pop3 = stack.pop();
-
-          var _stack$pop4 = _slicedToArray(_stack$pop3, 3);
-
-          prevLi = _stack$pop4[0];
-          prevList = _stack$pop4[1];
-          prevLevel = _stack$pop4[2];
-        }
-
-        if (curLevel > prevLevel) {
-          if (!firstNode(prevLi)) {
-            wrapContent(prevLi);
-          }
-
-          var curList = mkNode(prevList.tagName);
-          curList.appendChild(curLi);
-          prevLi.appendChild(curList);
-          changed = true;
-          stack.push([prevLi, prevList, prevLevel]);
-          prevLi = curLi;
-          prevList = curList;
-          prevLevel = curLevel;
-        } else {
-          if (prevList !== list) {
-            changed = true;
-            prevList.appendChild(curLi);
-          }
-
-          prevLi = curLi;
-        }
-      }
-    }); // if nothing was changed then return content;
-
-    if (!changed) {
-      return content;
+    });
+    var newContent = tempEl.innerHTML;
+    tempEl.remove();
+    return newContent;
+  }
+  function quillEncodeIndent(text) {
+    if (!text || text.length === 0) {
+      return text;
     }
 
-    return swap.innerHTML;
-  }
-  function breakDown(content) {
-    var swap = mkNode();
-    swap.innerHTML = content;
-    var changed = false; // find all `ul,ol`
+    var tempEl = window.document.createElement("div");
+    tempEl.setAttribute("style", "display: none;");
+    tempEl.innerHTML = text;
+    ["ul", "ol"].forEach(function (type) {
+      Array.from(tempEl.querySelectorAll(type)).forEach(function (outerListEl) {
+        var listResult = Array.from(outerListEl.children).filter(function (e) {
+          return e.tagName === "LI";
+        }).map(function (e) {
+          return encode_UnwindElement(type.toUpperCase(), e, 0);
+        }).reduce(function (prev, c) {
+          return [].concat(_toConsumableArray(prev), _toConsumableArray(c));
+        }, []) // flatten list
+        .map(function (e) {
+          return encode_GetLi(e);
+        }).reduce(function (prev, c) {
+          return "".concat(prev).concat(c);
+        }, ""); // merge to one string
 
-    var lists = Array.from(swap.querySelectorAll("ul,ol")).map(function (list) {
-      var level = parentNodes(list, function (n) {
-        return IS_LI[n.tagName];
-      }).length;
-
-      if (level > 0) {
-        for (var li = firstNode(list); li; li = nextNode(li)) {
-          if (setItemLevel(li, level)) {
-            changed = true;
-          }
-        }
-      }
-
-      return {
-        list: list,
-        level: level
-      };
-    }); // if nothing changed then no nesting then return origin
-
-    if (!changed) {
-      return content;
-    } //const
-
-
-    lists.forEach(function (_ref) {
-      var list = _ref.list,
-          level = _ref.level;
-
-      if (!level) {
-        return;
-      }
-
-      var topLi = parentNodes(list, function (n) {
-        return IS_LI[n.tagName];
-      }).slice(-1)[0];
-      var topList = topLi.parentNode;
-
-      if (list.tagName === topList.tagName) {
-        // move current <li>s after topLi in order
-        while (list.lastChild) {
-          insertAfter(list.lastChild, topLi);
-        }
-
-        list.remove();
-      } else {
-        // move next top <li>s into separate list
-        var nextTopLi = nextNode(topLi);
-
-        if (nextTopLi) {
-          var nextTopList = mkNode(topList.tagName);
-          insertAfter(nextTopList, topList);
-
-          while (nextTopLi) {
-            var next = nextNode(nextTopLi);
-            nextTopList.appendChild(nextTopLi);
-            nextTopLi = next;
-          }
-        }
-
-        insertAfter(list, topList);
-      }
+        outerListEl.innerHTML = listResult;
+      });
     });
-    return swap.innerHTML;
+    var newContent = tempEl.innerHTML;
+    tempEl.remove();
+    return newContent;
+  }
+
+  function encode_UnwindElement(listType, li, level) {
+    var childElements = Array.from(li.children).filter(function (innerElement) {
+      return innerElement.tagName === listType;
+    }).map(function (innerList) {
+      return Array.from(li.removeChild(innerList).children).map(function (nestedListElement) {
+        return encode_UnwindElement(listType, innerList.removeChild(nestedListElement), level + 1);
+      }).reduce(function (prev, c) {
+        return [].concat(_toConsumableArray(prev), _toConsumableArray(c));
+      }, []);
+    }).reduce(function (prev, c) {
+      return [].concat(_toConsumableArray(prev), _toConsumableArray(c));
+    }, []);
+    var current = {
+      classes: li.className,
+      content: li.innerHTML,
+      indent: level
+    };
+    return [current].concat(_toConsumableArray(childElements));
+  }
+
+  function encode_GetLi(e) {
+    var cl = "";
+
+    if (e.indent > 0) {
+      cl += "".concat(getIndentClass(e.indent));
+    }
+
+    if (e.classes.length > 0) {
+      cl += " ".concat(e.classes);
+    }
+
+    return "<li".concat(cl.length > 0 ? " class=\"".concat(cl, "\"") : "", ">").concat(e.content, "</li>");
+  }
+
+  function seekLastElement(list) {
+    return list[list.length - 1];
+  }
+
+  function encode_addChildToCurrentParent(parentStack, child) {
+    var currentParent = seekLastElement(parentStack);
+    currentParent.appendChild(child);
+  }
+
+  function getQuillListLevel(el) {
+    var className = el.className || "0";
+    return +className.replace(/[^\d]/g, "");
+  }
+
+  function getIndentClass(level) {
+    return "ql-indent-".concat(level);
   }
 
   //
@@ -958,7 +765,7 @@
     watch: {
       value: function value(val) {
         if (val != this.quill.root.innerHTML && !this.quill.hasFocus()) {
-          this.quill.root.innerHTML = val;
+          this.quill.root.innerHTML = quillEncodeIndent(val);
         }
       },
       disabled: function disabled(status) {
@@ -1100,14 +907,14 @@
         });
       },
       handleInitialContent: function handleInitialContent() {
-        if (this.value) this.quill.root.innerHTML = breakDown(this.value); // Set initial editor content
+        if (this.value) this.quill.root.innerHTML = quillEncodeIndent(this.value); // Set initial editor content
       },
       handleSelectionChange: function handleSelectionChange(range, oldRange) {
         if (!range && oldRange) this.$emit("blur", this.quill);else if (range && !oldRange) this.$emit("focus", this.quill);
       },
       handleTextChange: function handleTextChange(delta, oldContents) {
         var editorContent = this.quill.getHTML() === "<p><br></p>" ? "" : this.quill.getHTML();
-        this.$emit("input", fixUp(editorContent));
+        this.$emit("input", quillDecodeIndent(editorContent));
         if (this.useCustomImageHandler) this.handleImageRemoved(delta, oldContents);
       },
       handleImageRemoved: function handleImageRemoved(delta, oldContents) {
