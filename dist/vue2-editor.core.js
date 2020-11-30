@@ -1100,7 +1100,7 @@
         });
       },
       handleInitialContent: function handleInitialContent() {
-        if (this.value) this.quill.root.innerHTML = this.value; // Set initial editor content
+        if (this.value) this.quill.root.innerHTML = breakDown(this.value); // Set initial editor content
       },
       handleSelectionChange: function handleSelectionChange(range, oldRange) {
         if (!range && oldRange) this.$emit("blur", this.quill);else if (range && !oldRange) this.$emit("focus", this.quill);
