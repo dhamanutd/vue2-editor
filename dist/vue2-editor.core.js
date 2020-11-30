@@ -610,43 +610,7 @@
     return current;
   }
 
-  function parentNodes(node) {
-    var filter = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
-    var ret = [];
-    var cur = node.parentNode;
-
-    while (cur) {
-      if (1 === cur.nodeType) {
-        if (!filter || filter(cur)) {
-          ret.push(cur);
-        }
-      }
-
-      cur = cur.parentNode;
-    }
-
-    return ret;
-  }
-
-  function insertBefore(newNode, refNode) {
-    refNode.parentNode.insertBefore(newNode, refNode);
-  }
-
-  function insertAfter(newNode, refNode) {
-    var next = nextNode(refNode);
-
-    if (next) {
-      insertBefore(newNode, next);
-    } else {
-      refNode.parentNode.append(newNode);
-    }
-  }
-
   var reIndent = /^ql-indent-(\d+)$/;
-
-  var mkLevelClass = function mkLevelClass(level) {
-    return "ql-indent-".concat(level);
-  };
 
   var getItemLevel = function getItemLevel(li) {
     var level = 0;
@@ -659,23 +623,6 @@
       }
     });
     return level;
-  };
-
-  var setItemLevel = function setItemLevel(li, level) {
-    var changed = false;
-    Array.from(li.classList).forEach(function (name) {
-      if (reIndent.test(name)) {
-        li.classList.remove(name);
-        changed = true;
-      }
-    });
-
-    if (!level) {
-      return changed;
-    }
-
-    li.classList.add(mkLevelClass(level));
-    return true;
   };
 
   var removeItemLevel = function removeItemLevel(li) {
@@ -838,75 +785,6 @@
 
     return swap.innerHTML;
   }
-  function breakDown(content) {
-    var swap = mkNode();
-    swap.innerHTML = content;
-    var changed = false; // find all `ul,ol`
-
-    var lists = Array.from(swap.querySelectorAll("ul,ol")).map(function (list) {
-      var level = parentNodes(list, function (n) {
-        return IS_LI[n.tagName];
-      }).length;
-
-      if (level > 0) {
-        for (var li = firstNode(list); li; li = nextNode(li)) {
-          if (setItemLevel(li, level)) {
-            changed = true;
-          }
-        }
-      }
-
-      return {
-        list: list,
-        level: level
-      };
-    }); // if nothing changed then no nesting then return origin
-
-    if (!changed) {
-      return content;
-    } //const
-
-
-    lists.forEach(function (_ref) {
-      var list = _ref.list,
-          level = _ref.level;
-
-      if (!level) {
-        return;
-      }
-
-      var topLi = parentNodes(list, function (n) {
-        return IS_LI[n.tagName];
-      }).slice(-1)[0];
-      var topList = topLi.parentNode;
-
-      if (list.tagName === topList.tagName) {
-        // move current <li>s after topLi in order
-        while (list.lastChild) {
-          insertAfter(list.lastChild, topLi);
-        }
-
-        list.remove();
-      } else {
-        // move next top <li>s into separate list
-        var nextTopLi = nextNode(topLi);
-
-        if (nextTopLi) {
-          var nextTopList = mkNode(topList.tagName);
-          insertAfter(nextTopList, topList);
-
-          while (nextTopLi) {
-            var next = nextNode(nextTopLi);
-            nextTopList.appendChild(nextTopLi);
-            nextTopLi = next;
-          }
-        }
-
-        insertAfter(list, topList);
-      }
-    });
-    return swap.innerHTML;
-  }
 
   //
   var script = {
@@ -958,7 +836,7 @@
     watch: {
       value: function value(val) {
         if (val != this.quill.root.innerHTML && !this.quill.hasFocus()) {
-          this.quill.root.innerHTML = breakDown(val);
+          this.quill.root.innerHTML = val;
         }
       },
       disabled: function disabled(status) {
