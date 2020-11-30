@@ -109,6 +109,18 @@ export default {
 
       this.prepareEditorConfig(editorConfig);
       this.quill = new Quill(this.$refs.quillContainer, editorConfig);
+      this.quill.clipboard.addMatcher(Node.ELEMENT_NODE, (node, delta) => {
+        let ops = [];
+        delta.ops.forEach((op) => {
+          if (op.insert && typeof op.insert === "string") {
+            ops.push({
+              insert: op.insert,
+            });
+          }
+        });
+        delta.ops = ops;
+        return delta;
+      });
     },
 
     setModules() {
@@ -146,6 +158,34 @@ export default {
         Quill.register("modules/markdownShortcuts", MarkdownShortcuts, true);
         modules["markdownShortcuts"] = {};
       }
+
+      var DirectionAttribute = Quill.import("attributors/attribute/direction");
+      Quill.register(DirectionAttribute, true);
+      var AlignClass = Quill.import("attributors/class/align");
+      Quill.register(AlignClass, true);
+      var BackgroundClass = Quill.import("attributors/class/background");
+      Quill.register(BackgroundClass, true);
+      var ColorClass = Quill.import("attributors/class/color");
+      Quill.register(ColorClass, true);
+      var DirectionClass = Quill.import("attributors/class/direction");
+      Quill.register(DirectionClass, true);
+      var FontClass = Quill.import("attributors/class/font");
+      Quill.register(FontClass, true);
+      var SizeClass = Quill.import("attributors/class/size");
+      Quill.register(SizeClass, true);
+      var AlignStyle = Quill.import("attributors/style/align");
+      Quill.register(AlignStyle, true);
+      var BackgroundStyle = Quill.import("attributors/style/background");
+      Quill.register(BackgroundStyle, true);
+      var ColorStyle = Quill.import("attributors/style/color");
+      Quill.register(ColorStyle, true);
+      var DirectionStyle = Quill.import("attributors/style/direction");
+      Quill.register(DirectionStyle, true);
+      var FontStyle = Quill.import("attributors/style/font");
+      Quill.register(FontStyle, true);
+      var SizeStyle = Quill.import("attributors/style/size");
+      Quill.register(SizeStyle, true);
+
       return modules;
     },
 
