@@ -241,7 +241,7 @@ export default {
     handleTextChange(delta, oldContents) {
       let editorContent =
         this.quill.getHTML() === "<p><br></p>" ? "" : this.quill.getHTML();
-      this.$emit("input", editorContent);
+      this.$emit("input", fixUp(editorContent));
 
       if (this.useCustomImageHandler)
         this.handleImageRemoved(delta, oldContents);

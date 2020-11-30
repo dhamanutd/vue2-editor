@@ -569,6 +569,17 @@
     li: true
   };
 
+  function wrapContent(node) {
+    var tagName = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "div";
+    var container = mkNode(tagName);
+
+    while (node.firstChild) {
+      container.appendChild(node.firstChild);
+    }
+
+    node.appendChild(container);
+  }
+
   function nextNode(node) {
     var current = node;
 
@@ -584,6 +595,16 @@
 
     while (current && 1 !== current.nodeType) {
       current = current.nextSibling;
+    }
+
+    return current;
+  }
+
+  function lastNode(node) {
+    var current = node.lastChild;
+
+    while (current && 1 !== current.nodeType) {
+      current = current.previousSibling;
     }
 
     return current;
@@ -627,6 +648,19 @@
     return "ql-indent-".concat(level);
   };
 
+  var getItemLevel = function getItemLevel(li) {
+    var level = 0;
+    Array.from(li.classList).some(function (name) {
+      var match = name.match(reIndent);
+
+      if (match) {
+        level = Number(match[1]);
+        return true;
+      }
+    });
+    return level;
+  };
+
   var setItemLevel = function setItemLevel(li, level) {
     var changed = false;
     Array.from(li.classList).forEach(function (name) {
@@ -643,6 +677,167 @@
     li.classList.add(mkLevelClass(level));
     return true;
   };
+
+  var removeItemLevel = function removeItemLevel(li) {
+    var level = 0;
+    Array.from(li.classList).some(function (name) {
+      var match = name.match(reIndent);
+
+      if (match) {
+        li.classList.remove(name);
+
+        if (!li.classList.length) {
+          li.removeAttribute("class");
+        }
+
+        level = Number(match[1]);
+        return true;
+      }
+    });
+    return level;
+  };
+
+  var getListLevel = function getListLevel(list) {
+    var li = firstNode(list);
+    return li && IS_LI[li.tagName] ? getItemLevel(li) : 0;
+  };
+
+  function fixUp(content) {
+    var swap = mkNode();
+    swap.innerHTML = content; // find all `ul,ol`
+
+    var lists = Array.from(swap.querySelectorAll("ul,ol")); // if none then return content;
+
+    if (!lists.length) {
+      return content;
+    }
+
+    var changed = false; // check its indent level
+    // nest lists and remember if anything was changed
+
+    {
+      var prevList = null;
+      var prevListLevel = null;
+      var prevLastLi = null;
+      var prevLastLiLevel = null;
+      var stack = [];
+      lists.forEach(function (list, listIndex) {
+        var curLevel = getListLevel(list);
+        var curLastLi = lastNode(list);
+        var curLastLiLevel = getItemLevel(curLastLi);
+
+        if (null === prevList) {
+          prevList = list;
+          prevListLevel = curLevel;
+          prevLastLi = curLastLi;
+          prevLastLiLevel = curLastLiLevel;
+          return;
+        }
+
+        while (curLevel < prevLastLiLevel && stack.length) {
+          var _stack$pop = stack.pop();
+
+          var _stack$pop2 = _slicedToArray(_stack$pop, 4);
+
+          prevList = _stack$pop2[0];
+          prevListLevel = _stack$pop2[1];
+          prevLastLi = _stack$pop2[2];
+          prevLastLiLevel = _stack$pop2[3];
+        }
+
+        if (curLevel > prevLastLiLevel) {
+          stack.push([prevList, prevListLevel, prevLastLi, prevLastLiLevel]);
+
+          if (!firstNode(prevLastLi)) {
+            wrapContent(prevLastLi);
+          }
+
+          prevLastLi.appendChild(list);
+          changed = true;
+          prevList = list;
+          prevListLevel = curLevel;
+          prevLastLi = curLastLi;
+          prevLastLiLevel = curLastLiLevel;
+          return;
+        }
+
+        if (list.tagName === prevList.tagName && nextNode(prevList) === list) {
+          // merge lists
+          while (list.firstChild) {
+            prevList.appendChild(list.firstChild);
+            changed = true;
+          } // remove empty list from DOM
+
+
+          list.remove(); // remove it from array
+
+          delete lists[listIndex];
+          prevLastLi = lastNode(prevList);
+          prevLastLiLevel = getItemLevel(prevLastLi);
+          return;
+        }
+
+        prevList = list;
+        prevListLevel = curLevel;
+        prevLastLi = curLastLi;
+        prevLastLiLevel = curLastLiLevel;
+      });
+    } // check all its `li`
+
+    lists.forEach(function (list) {
+      var li = firstNode(list);
+      var baseLevel = removeItemLevel(li);
+      var prevLi = li;
+      var prevList = list;
+      var prevLevel = baseLevel;
+      var stack = [];
+      var nextLi = nextNode(prevLi);
+
+      while (nextLi) {
+        var curLi = nextLi;
+        nextLi = nextNode(nextLi);
+        var curLevel = removeItemLevel(curLi);
+
+        while (curLevel < prevLevel && curLevel >= baseLevel && stack.length) {
+          var _stack$pop3 = stack.pop();
+
+          var _stack$pop4 = _slicedToArray(_stack$pop3, 3);
+
+          prevLi = _stack$pop4[0];
+          prevList = _stack$pop4[1];
+          prevLevel = _stack$pop4[2];
+        }
+
+        if (curLevel > prevLevel) {
+          if (!firstNode(prevLi)) {
+            wrapContent(prevLi);
+          }
+
+          var curList = mkNode(prevList.tagName);
+          curList.appendChild(curLi);
+          prevLi.appendChild(curList);
+          changed = true;
+          stack.push([prevLi, prevList, prevLevel]);
+          prevLi = curLi;
+          prevList = curList;
+          prevLevel = curLevel;
+        } else {
+          if (prevList !== list) {
+            changed = true;
+            prevList.appendChild(curLi);
+          }
+
+          prevLi = curLi;
+        }
+      }
+    }); // if nothing was changed then return content;
+
+    if (!changed) {
+      return content;
+    }
+
+    return swap.innerHTML;
+  }
   function breakDown(content) {
     var swap = mkNode();
     swap.innerHTML = content;
@@ -912,7 +1107,7 @@
       },
       handleTextChange: function handleTextChange(delta, oldContents) {
         var editorContent = this.quill.getHTML() === "<p><br></p>" ? "" : this.quill.getHTML();
-        this.$emit("input", editorContent);
+        this.$emit("input", fixUp(editorContent));
         if (this.useCustomImageHandler) this.handleImageRemoved(delta, oldContents);
       },
       handleImageRemoved: function handleImageRemoved(delta, oldContents) {
