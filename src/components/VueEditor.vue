@@ -70,7 +70,7 @@ export default {
   watch: {
     value(val) {
       if (val != this.quill.root.innerHTML && !this.quill.hasFocus()) {
-        this.quill.root.innerHTML = breakDown(val);
+        this.quill.root.innerHTML = val;
       }
     },
     disabled(status) {
